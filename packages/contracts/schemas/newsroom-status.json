@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://multi-agent-newsroom.local/schemas/newsroom-status.json",
+  "title": "NewsroomStatus",
+  "type": "object",
+  "required": ["status", "active_stories", "active_agents", "publication_gate"],
+  "properties": {
+    "status": { "type": "string" },
+    "active_stories": { "type": "integer", "minimum": 0 },
+    "active_agents": { "type": "integer", "minimum": 0 },
+    "publication_gate": { "const": "human_required" }
+  },
+  "additionalProperties": false
+}

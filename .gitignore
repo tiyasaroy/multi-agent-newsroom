@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 .venv/
 venv/
 
@@ -8,12 +9,17 @@ venv/
 dist/
 build/
 coverage/
+*.tsbuildinfo
 *.egg-info/
 
 # Local configuration and secrets
 .env
 .env.*
 !.env.example
+
+# Python bytecode
+__pycache__/
+*.py[cod]
 
 # Runtime data
 *.log
@@ -28,3 +34,5 @@ coverage/
 .idea/
 .vscode/
 
+# Local containers
+.docker/

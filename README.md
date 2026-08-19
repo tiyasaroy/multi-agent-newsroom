@@ -48,4 +48,34 @@ human approved publication.
 
 ## Status
 
-Project initialization and architecture planning.
+Foundation development: monorepo, web application, API, and local data services.
+
+## Repository layout
+
+```text
+apps/web/          Next.js newsroom interface
+services/api/      FastAPI application and future agent orchestrator
+packages/contracts Shared API schemas
+infra/             Local infrastructure configuration
+```
+
+## Local development
+
+Prerequisites: Node.js 20+, pnpm 9+, Python 3.11+, and Docker with Compose.
+
+```bash
+cp .env.example .env
+make install
+make infra-up
+make dev
+```
+
+The web application runs at `http://localhost:3000`, the API at
+`http://localhost:8000`, and interactive API documentation at
+`http://localhost:8000/docs`.
+
+Run all currently configured checks with:
+
+```bash
+make check
+```

@@ -1,0 +1,11 @@
+{
+  "name": "@newsroom/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "files": ["schemas"],
+  "scripts": {
+    "build": "node -e \"console.log('JSON schemas require no build')\"",
+    "lint": "node -e \"JSON.parse(require('fs').readFileSync('schemas/newsroom-status.json'))\"",
+    "typecheck": "node -e \"console.log('No generated types yet')\""
+  }
+}
