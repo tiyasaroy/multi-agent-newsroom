@@ -40,6 +40,19 @@ class FactCheckOutput(BaseModel):
     blocked_reason: str | None = None
 
 
+class AdversarialIssue(BaseModel):
+    claim_index: int | None = Field(default=None, ge=0)
+    severity: str = Field(pattern="^(low|medium|high)$")
+    category: str = Field(min_length=3, max_length=80)
+    summary: str = Field(min_length=5, max_length=500)
+    recommendation: str = Field(min_length=5, max_length=500)
+
+
+class AdversarialOutput(BaseModel):
+    findings: list[AdversarialIssue]
+    publication_blocked: bool = False
+
+
 OutputT = TypeVar("OutputT", bound=BaseModel)
 
 
@@ -65,6 +78,14 @@ class NewsroomModelProvider(Protocol):
     async def draft(
         self, story_title: str, claims: list[ModelClaim]
     ) -> ModelResult[DraftOutput]: ...
+
+    async def misinformation_review(
+        self, claims: list[ModelClaim], sources: list[SourceInput]
+    ) -> ModelResult[AdversarialOutput]: ...
+
+    async def bias_review(
+        self, draft: DraftOutput, claims: list[ModelClaim]
+    ) -> ModelResult[AdversarialOutput]: ...
 
     async def fact_check(
         self, claims: list[ModelClaim], independent_source_count: int

@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from newsroom_api.providers.base import (
+    AdversarialOutput,
     DraftOutput,
     FactCheckOutput,
     ModelClaim,
@@ -87,9 +88,7 @@ class OpenAINewsroomProvider:
             },
         )
 
-    async def draft(
-        self, story_title: str, claims: list[ModelClaim]
-    ) -> ModelResult[DraftOutput]:
+    async def draft(self, story_title: str, claims: list[ModelClaim]) -> ModelResult[DraftOutput]:
         return await self._invoke(
             DraftOutput,
             "reporter-v1",
@@ -120,5 +119,39 @@ class OpenAINewsroomProvider:
             {
                 "claims": [item.model_dump(mode="json") for item in claims],
                 "independent_source_count": independent_source_count,
+            },
+        )
+
+    async def misinformation_review(
+        self, claims: list[ModelClaim], sources: list[SourceInput]
+    ) -> ModelResult[AdversarialOutput]:
+        return await self._invoke(
+            AdversarialOutput,
+            "misinformation-analyst-v1",
+            (
+                "Red-team claims for fabricated specificity, source laundering, circular "
+                "reporting, missing context, and quote-to-claim mismatch. High-severity "
+                "material risks must block publication. Disagreement alone is not misinformation."
+            ),
+            {
+                "claims": [item.model_dump(mode="json") for item in claims],
+                "sources": [item.model_dump(mode="json") for item in sources],
+            },
+        )
+
+    async def bias_review(
+        self, draft: DraftOutput, claims: list[ModelClaim]
+    ) -> ModelResult[AdversarialOutput]:
+        return await self._invoke(
+            AdversarialOutput,
+            "bias-auditor-v1",
+            (
+                "Audit framing, loaded language, asymmetric attribution, omitted uncertainty, "
+                "and unsupported causal implication. Return actionable findings. Block only "
+                "high-severity framing that materially distorts the supported record."
+            ),
+            {
+                "draft": draft.model_dump(mode="json"),
+                "claims": [item.model_dump(mode="json") for item in claims],
             },
         )

@@ -133,6 +133,19 @@ class EditorialDecisionRead(BaseModel):
     created_at: datetime
 
 
+class AdversarialFindingRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    agent: str
+    severity: str
+    category: str
+    claim_index: int | None
+    summary: str
+    recommendation: str
+    created_at: datetime
+
+
 class InvestigationRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -151,3 +164,4 @@ class InvestigationRunRead(BaseModel):
     claims: list[ClaimRead]
     draft: DraftRead | None
     editorial_decisions: list[EditorialDecisionRead]
+    adversarial_findings: list[AdversarialFindingRead]

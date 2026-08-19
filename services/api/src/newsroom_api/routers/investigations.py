@@ -37,6 +37,7 @@ def run_query() -> object:
         selectinload(InvestigationRun.claims).selectinload(Claim.citations),
         selectinload(InvestigationRun.draft),
         selectinload(InvestigationRun.editorial_decisions),
+        selectinload(InvestigationRun.adversarial_findings),
     )
 
 

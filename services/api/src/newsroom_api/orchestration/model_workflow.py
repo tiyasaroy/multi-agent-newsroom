@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from newsroom_api.models import (
+    AdversarialFinding,
     AgentEvent,
     AgentRole,
     Citation,
@@ -54,9 +55,7 @@ class ModelNewsroomWorkflow:
             )
         )
 
-    async def load_context(
-        self, run_id: uuid.UUID
-    ) -> tuple[InvestigationRun, Story]:
+    async def load_context(self, run_id: uuid.UUID) -> tuple[InvestigationRun, Story]:
         run = await self.session.scalar(
             select(InvestigationRun)
             .where(InvestigationRun.id == run_id)
@@ -64,6 +63,7 @@ class ModelNewsroomWorkflow:
                 selectinload(InvestigationRun.events),
                 selectinload(InvestigationRun.claims),
                 selectinload(InvestigationRun.draft),
+                selectinload(InvestigationRun.adversarial_findings),
             )
         )
         if run is None:
@@ -141,6 +141,51 @@ class ModelNewsroomWorkflow:
         await self.session.commit()
 
         run, story = await self.load_context(run.id)
+        run.current_stage = AgentRole.MISINFORMATION_ANALYST.value
+        misinformation = await self.provider.misinformation_review(model_claims, sources)
+        for finding in misinformation.output.findings:
+            if finding.claim_index is not None and finding.claim_index >= len(model_claims):
+                raise ValueError("Misinformation review referenced an unknown claim")
+            run.adversarial_findings.append(
+                AdversarialFinding(
+                    agent=AgentRole.MISINFORMATION_ANALYST.value,
+                    **finding.model_dump(),
+                )
+            )
+        self.record_event(
+            run,
+            AgentRole.MISINFORMATION_ANALYST,
+            f"Red-teamed claims and raised {len(misinformation.output.findings)} findings",
+            {
+                "finding_count": len(misinformation.output.findings),
+                "publication_blocked": misinformation.output.publication_blocked,
+            },
+            misinformation,
+        )
+        await self.session.commit()
+
+        run, story = await self.load_context(run.id)
+        run.current_stage = AgentRole.BIAS_AUDITOR.value
+        bias = await self.provider.bias_review(draft_result.output, model_claims)
+        for finding in bias.output.findings:
+            if finding.claim_index is not None and finding.claim_index >= len(model_claims):
+                raise ValueError("Bias review referenced an unknown claim")
+            run.adversarial_findings.append(
+                AdversarialFinding(agent=AgentRole.BIAS_AUDITOR.value, **finding.model_dump())
+            )
+        self.record_event(
+            run,
+            AgentRole.BIAS_AUDITOR,
+            f"Audited framing and raised {len(bias.output.findings)} findings",
+            {
+                "finding_count": len(bias.output.findings),
+                "publication_blocked": bias.output.publication_blocked,
+            },
+            bias,
+        )
+        await self.session.commit()
+
+        run, story = await self.load_context(run.id)
         run.current_stage = AgentRole.FACT_CHECKER.value
         publishers = {
             (source.publisher or source.url or str(source.id)).casefold()
@@ -155,12 +200,23 @@ class ModelNewsroomWorkflow:
             claim.verdict = ClaimVerdict(review.verdict)
             claim.confidence = review.confidence
 
-        blocked = fact_check.output.publication_blocked
+        blocked = (
+            fact_check.output.publication_blocked
+            or misinformation.output.publication_blocked
+            or bias.output.publication_blocked
+        )
         if run.draft is None:
             raise ValueError("Draft disappeared before fact-checking")
         run.status = RunStatus.BLOCKED if blocked else RunStatus.REVIEW
         run.draft.status = DraftStatus.BLOCKED if blocked else DraftStatus.HUMAN_REVIEW
-        run.blocked_reason = fact_check.output.blocked_reason if blocked else None
+        if fact_check.output.publication_blocked:
+            run.blocked_reason = fact_check.output.blocked_reason
+        elif misinformation.output.publication_blocked:
+            run.blocked_reason = "Misinformation analyst found a high-severity material risk."
+        elif bias.output.publication_blocked:
+            run.blocked_reason = "Bias auditor found materially distorting framing."
+        else:
+            run.blocked_reason = None
         if not blocked:
             story.status = StoryStatus.REVIEW
         self.record_event(

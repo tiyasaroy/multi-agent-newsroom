@@ -53,6 +53,8 @@ class AgentRole(enum.StrEnum):
     RESEARCHER = "researcher"
     REPORTER = "reporter"
     FACT_CHECKER = "fact_checker"
+    MISINFORMATION_ANALYST = "misinformation_analyst"
+    BIAS_AUDITOR = "bias_auditor"
 
 
 class EventStatus(enum.StrEnum):
@@ -150,14 +152,15 @@ class InvestigationRun(TimestampMixin, Base):
     events: Mapped[list["AgentEvent"]] = relationship(
         back_populates="run", cascade="all, delete-orphan", order_by="AgentEvent.sequence"
     )
-    claims: Mapped[list["Claim"]] = relationship(
-        back_populates="run", cascade="all, delete-orphan"
-    )
+    claims: Mapped[list["Claim"]] = relationship(back_populates="run", cascade="all, delete-orphan")
     draft: Mapped["Draft | None"] = relationship(
         back_populates="run", cascade="all, delete-orphan", uselist=False
     )
     editorial_decisions: Mapped[list["EditorialDecision"]] = relationship(
         back_populates="run", cascade="all, delete-orphan", order_by="EditorialDecision.created_at"
+    )
+    adversarial_findings: Mapped[list["AdversarialFinding"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="AdversarialFinding.created_at"
     )
 
 
@@ -257,3 +260,22 @@ class EditorialDecision(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     run: Mapped[InvestigationRun] = relationship(back_populates="editorial_decisions")
+
+
+class AdversarialFinding(Base):
+    __tablename__ = "adversarial_findings"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("investigation_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    agent: Mapped[str] = mapped_column(String(80), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    claim_index: Mapped[int | None] = mapped_column(Integer)
+    summary: Mapped[str] = mapped_column(String(500), nullable=False)
+    recommendation: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    run: Mapped[InvestigationRun] = relationship(back_populates="adversarial_findings")

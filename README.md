@@ -20,7 +20,7 @@ human approved publication.
 6. Show editors the evidence graph, unresolved risks, and revision history.
 7. Publish only after explicit human approval.
 
-## Planned agents
+## Agent roster
 
 - Assignment Editor
 - Source Scout
@@ -105,11 +105,12 @@ source receives an explainable 0–100 credibility score based on observable
 signals such as HTTPS, named attribution, publication time, and evidence depth;
 the score does not claim that the source is factually correct.
 
-The workflow includes deterministic implementations of the Assignment Editor,
-Researcher, Reporter, and Fact-Checker. It exercises durable agent state, parallel
-source research, citations, idempotency, and editorial blocking without requiring
-model credentials. OpenAI and Gemini adapters can run the same workflow with live
-models and structured outputs.
+The active workflow includes the Assignment Editor, Researcher, Reporter,
+Misinformation Analyst, Bias Auditor, and Fact-Checker before reaching the human
+editorial gate. It exercises durable agent state, parallel source research,
+citations, structured adversarial findings, idempotency, and editorial blocking
+without requiring model credentials. OpenAI and Gemini adapters run the same
+six-stage workflow with schema-constrained outputs.
 
 ### Model-backed investigations
 

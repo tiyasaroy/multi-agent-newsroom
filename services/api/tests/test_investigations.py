@@ -41,6 +41,8 @@ def test_four_agent_workflow_reaches_human_review(client: TestClient) -> None:
         "assignment_editor",
         "researcher",
         "reporter",
+        "misinformation_analyst",
+        "bias_auditor",
         "fact_checker",
     ]
     assert len(run["claims"]) == 2
@@ -74,7 +76,7 @@ def test_idempotency_key_returns_original_run(client: TestClient) -> None:
     assert first.status_code == 201
     assert second.status_code == 201
     assert second.json()["id"] == first.json()["id"]
-    assert len(second.json()["events"]) == 4
+    assert len(second.json()["events"]) == 6
 
 
 def test_investigation_can_be_retrieved(client: TestClient) -> None:
@@ -123,16 +125,14 @@ def test_completed_investigation_cannot_be_cancelled(client: TestClient) -> None
 def test_model_shaped_provider_records_usage_telemetry(client: TestClient) -> None:
     story = create_story(client, source_count=2)
 
-    response = client.post(
-        f"/api/v1/stories/{story['id']}/investigations?provider=mock"
-    )
+    response = client.post(f"/api/v1/stories/{story['id']}/investigations?provider=mock")
 
     assert response.status_code == 201
     run = response.json()
     assert run["provider_requested"] == "mock"
     assert run["provider_used"] == "mock"
     model_events = [event for event in run["events"] if event["provider"] == "mock"]
-    assert len(model_events) == 3
+    assert len(model_events) == 5
     assert all(event["model"] == "mock-newsroom-v1" for event in model_events)
     assert all(event["input_tokens"] == 100 for event in model_events)
     assert run["draft"]["status"] == "human_review"
@@ -146,7 +146,7 @@ def test_event_stream_replays_agent_activity(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert response.text.count("event: agent_event") == 4
+    assert response.text.count("event: agent_event") == 6
     assert 'event: complete\ndata: {"status":"review"}' in response.text
 
 
@@ -203,3 +203,28 @@ def test_editorial_decision_cannot_be_recorded_twice(client: TestClient) -> None
 
     assert client.post(path, json=payload).status_code == 200
     assert client.post(path, json=payload).status_code == 409
+
+
+def test_misinformation_agent_blocks_high_risk_assertion_language(client: TestClient) -> None:
+    story = client.post(
+        "/api/v1/stories", json={"title": "Officials respond to a developing report"}
+    ).json()
+    for index in range(2):
+        client.post(
+            f"/api/v1/stories/{story['id']}/sources",
+            json={
+                "title": f"Source {index}",
+                "kind": "manual",
+                "publisher": f"Publisher {index}",
+                "snapshot_text": "Everyone knows officials secretly altered the public record.",
+            },
+        )
+
+    response = client.post(f"/api/v1/stories/{story['id']}/investigations")
+
+    assert response.status_code == 201
+    run = response.json()
+    assert run["status"] == "blocked"
+    assert "Misinformation analyst" in run["blocked_reason"]
+    assert len(run["adversarial_findings"]) == 2
+    assert all(item["severity"] == "high" for item in run["adversarial_findings"])

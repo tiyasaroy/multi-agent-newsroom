@@ -1,4 +1,5 @@
 from newsroom_api.providers.base import (
+    AdversarialOutput,
     ClaimReview,
     DraftOutput,
     FactCheckOutput,
@@ -42,9 +43,7 @@ class MockNewsroomProvider:
         ]
         return self.result(ResearchOutput(claims=claims), "researcher-v1")
 
-    async def draft(
-        self, story_title: str, claims: list[ModelClaim]
-    ) -> ModelResult[DraftOutput]:
+    async def draft(self, story_title: str, claims: list[ModelClaim]) -> ModelResult[DraftOutput]:
         body = "\n\n".join(f"{claim.text} [{index}]" for index, claim in enumerate(claims, 1))
         return self.result(DraftOutput(title=story_title, body=body), "reporter-v1")
 
@@ -71,4 +70,22 @@ class MockNewsroomProvider:
                 ),
             ),
             "fact-checker-v1",
+        )
+
+    async def misinformation_review(
+        self, claims: list[ModelClaim], sources: list[SourceInput]
+    ) -> ModelResult[AdversarialOutput]:
+        del claims, sources
+        return self.result(
+            AdversarialOutput(findings=[], publication_blocked=False),
+            "misinformation-analyst-v1",
+        )
+
+    async def bias_review(
+        self, draft: DraftOutput, claims: list[ModelClaim]
+    ) -> ModelResult[AdversarialOutput]:
+        del draft, claims
+        return self.result(
+            AdversarialOutput(findings=[], publication_blocked=False),
+            "bias-auditor-v1",
         )

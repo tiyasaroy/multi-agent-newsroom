@@ -42,6 +42,16 @@ type Run = {
     note: string | null;
     created_at: string;
   }[];
+  adversarial_findings: {
+    id: string;
+    agent: string;
+    severity: string;
+    category: string;
+    claim_index: number | null;
+    summary: string;
+    recommendation: string;
+    created_at: string;
+  }[];
 };
 
 const demoRun: Run = {
@@ -67,6 +77,10 @@ const demoRun: Run = {
     status: "human_review",
   },
   editorial_decisions: [],
+  adversarial_findings: [
+    { id: "f1", agent: "misinformation_analyst", severity: "medium", category: "conflicting_accounts", claim_index: 2, summary: "Independent accounts disagree on the disruption boundary.", recommendation: "Keep the geographic extent explicitly unresolved.", created_at: "2026-08-20T10:00:00Z" },
+    { id: "f2", agent: "bias_auditor", severity: "low", category: "framing_balance", claim_index: null, summary: "Authority statements receive more prominence than rider accounts.", recommendation: "Add direct attribution when more evidence becomes available.", created_at: "2026-08-20T10:00:01Z" },
+  ],
 };
 
 const label = (value: string) => value.replaceAll("_", " ");
@@ -167,7 +181,9 @@ export function InvestigationWorkspace({ runId }: { runId: string }) {
         </article>
 
         <aside className="evidence-column">
-          <div className="section-label">Claims & evidence</div>
+          <div className="section-label"><span>Adversarial review</span><em>{run.adversarial_findings.length} flags</em></div>
+          <div className="risk-stack">{run.adversarial_findings.length === 0 ? <p className="risk-clear">No material misinformation or framing risks detected.</p> : run.adversarial_findings.map((finding) => <article className={`risk-card ${finding.severity}`} key={finding.id}><header><span>{label(finding.agent)}</span><b>{finding.severity}</b></header><h4>{label(finding.category)}</h4><p>{finding.summary}</p><small>{finding.recommendation}</small></article>)}</div>
+          <div className="section-label claims-heading">Claims & evidence</div>
           {run.claims.map((claim, index) => (
             <details className="claim-card" key={claim.id} open={index === 0}>
               <summary><span className={`verdict ${claim.verdict}`} /> <b>Claim {index + 1}</b><em>{Math.round(claim.confidence * 100)}%</em></summary>

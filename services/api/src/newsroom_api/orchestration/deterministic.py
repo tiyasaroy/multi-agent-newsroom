@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from newsroom_api.models import (
+    AdversarialFinding,
     AgentEvent,
     AgentRole,
     Citation,
@@ -80,6 +81,7 @@ class DeterministicNewsroomWorkflow:
                 selectinload(InvestigationRun.events),
                 selectinload(InvestigationRun.claims),
                 selectinload(InvestigationRun.draft),
+                selectinload(InvestigationRun.adversarial_findings),
             )
         )
         if persisted_run is None:
@@ -147,6 +149,55 @@ class DeterministicNewsroomWorkflow:
             {"paragraph_count": len(paragraphs), "citation_count": len(sources)},
         )
 
+        misinformation_terms = {"hoax", "secretly", "everyone knows", "undeniable"}
+        misinformation_findings = 0
+        for index, claim in enumerate(run.claims):
+            matched = next(
+                (term for term in misinformation_terms if term in claim.text.casefold()), None
+            )
+            if matched:
+                misinformation_findings += 1
+                run.adversarial_findings.append(
+                    AdversarialFinding(
+                        agent=AgentRole.MISINFORMATION_ANALYST.value,
+                        severity="high",
+                        category="unsupported_rhetoric",
+                        claim_index=index,
+                        summary=f"Claim uses high-risk assertion language: {matched}.",
+                        recommendation="Replace the assertion with directly sourced language.",
+                    )
+                )
+        self.record_event(
+            run,
+            AgentRole.MISINFORMATION_ANALYST,
+            f"Red-teamed claims and raised {misinformation_findings} findings",
+            {
+                "finding_count": misinformation_findings,
+                "publication_blocked": misinformation_findings > 0,
+            },
+        )
+
+        bias_terms = {"disaster", "shocking", "obviously", "outrageous"}
+        draft_text = f"{draft.title} {draft.body}".casefold()
+        matched_bias = sorted(term for term in bias_terms if term in draft_text)
+        for term in matched_bias:
+            run.adversarial_findings.append(
+                AdversarialFinding(
+                    agent=AgentRole.BIAS_AUDITOR.value,
+                    severity="medium",
+                    category="loaded_language",
+                    claim_index=None,
+                    summary=f"Draft framing includes loaded term: {term}.",
+                    recommendation="Use neutral, attributable language.",
+                )
+            )
+        self.record_event(
+            run,
+            AgentRole.BIAS_AUDITOR,
+            f"Audited framing and raised {len(matched_bias)} findings",
+            {"finding_count": len(matched_bias), "publication_blocked": False},
+        )
+
         run.current_stage = AgentRole.FACT_CHECKER.value
         publishers = {
             (source.publisher or source.url or str(source.id)).casefold()
@@ -159,6 +210,9 @@ class DeterministicNewsroomWorkflow:
             blocked_reason = "At least two independent sources are required for human review."
         else:
             blocked_reason = None
+
+        if misinformation_findings:
+            blocked_reason = "Misinformation analyst found high-risk unsupported rhetoric."
 
         if blocked_reason:
             for claim in run.claims:
