@@ -67,6 +67,7 @@ Prerequisites: Node.js 20+, pnpm 9+, Python 3.11+, and Docker with Compose.
 cp .env.example .env
 make install
 make infra-up
+make db-migrate
 make dev
 ```
 
@@ -79,3 +80,14 @@ Run all currently configured checks with:
 ```bash
 make check
 ```
+
+## Current API
+
+- `POST /api/v1/stories` creates a developing story.
+- `GET /api/v1/stories` lists and filters stories.
+- `GET /api/v1/stories/{story_id}` returns a story with its source snapshots.
+- `POST /api/v1/stories/{story_id}/sources` attaches immutable source material.
+
+Database schema changes are managed with Alembic migrations. Source snapshots are
+stored independently from their original URLs so future fact-checking agents can
+always audit the exact evidence used during an investigation.

@@ -1,4 +1,4 @@
-.PHONY: install dev dev-web dev-api infra-up infra-down check
+.PHONY: install dev dev-web dev-api db-migrate infra-up infra-down check
 
 install:
 	pnpm install
@@ -13,6 +13,9 @@ dev-web:
 
 dev-api:
 	.venv/bin/uvicorn newsroom_api.main:app --app-dir services/api/src --reload --port 8000
+
+db-migrate:
+	cd services/api && ../../.venv/bin/alembic upgrade head
 
 infra-up:
 	docker compose -f infra/compose.yaml up -d
