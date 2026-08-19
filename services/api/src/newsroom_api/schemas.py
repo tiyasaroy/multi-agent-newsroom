@@ -165,3 +165,41 @@ class InvestigationRunRead(BaseModel):
     draft: DraftRead | None
     editorial_decisions: list[EditorialDecisionRead]
     adversarial_findings: list[AdversarialFindingRead]
+
+
+class InvestigationSummary(BaseModel):
+    id: uuid.UUID
+    story_id: uuid.UUID
+    story_title: str
+    status: RunStatus
+    provider_used: str
+    event_count: int
+    claim_count: int
+    finding_count: int
+    total_tokens: int
+    total_latency_ms: int
+    estimated_cost_usd: float
+    created_at: datetime
+
+
+class NamedMetric(BaseModel):
+    name: str
+    count: int
+
+
+class ProviderMetric(BaseModel):
+    provider: str
+    runs: int
+    tokens: int
+    latency_ms: int
+    estimated_cost_usd: float
+
+
+class AnalyticsOverview(BaseModel):
+    total_runs: int
+    total_claims: int
+    total_findings: int
+    status_breakdown: list[NamedMetric]
+    risk_breakdown: list[NamedMetric]
+    editorial_outcomes: list[NamedMetric]
+    providers: list[ProviderMetric]

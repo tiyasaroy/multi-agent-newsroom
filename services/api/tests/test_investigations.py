@@ -228,3 +228,49 @@ def test_misinformation_agent_blocks_high_risk_assertion_language(client: TestCl
     assert "Misinformation analyst" in run["blocked_reason"]
     assert len(run["adversarial_findings"]) == 2
     assert all(item["severity"] == "high" for item in run["adversarial_findings"])
+
+
+def test_investigation_history_is_searchable_and_filterable(client: TestClient) -> None:
+    transit = create_story(client, source_count=2)
+    client.post(f"/api/v1/stories/{transit['id']}/investigations?provider=mock")
+    other = client.post(
+        "/api/v1/stories", json={"title": "Harbour weather monitoring report"}
+    ).json()
+    client.post(f"/api/v1/stories/{other['id']}/investigations")
+
+    response = client.get("/api/v1/investigations?search=Transit&provider=mock")
+
+    assert response.status_code == 200
+    history = response.json()
+    assert len(history) == 1
+    assert history[0]["story_id"] == transit["id"]
+    assert history[0]["provider_used"] == "mock"
+    assert history[0]["event_count"] == 6
+    assert history[0]["total_tokens"] == 750
+
+
+def test_analytics_overview_aggregates_outcomes_and_provider_usage(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+    run = client.post(f"/api/v1/stories/{story['id']}/investigations?provider=mock").json()
+    client.post(
+        f"/api/v1/investigations/{run['id']}/approve",
+        json={"editor_name": "Analytics Editor"},
+    )
+
+    response = client.get("/api/v1/analytics/overview")
+
+    assert response.status_code == 200
+    overview = response.json()
+    assert overview["total_runs"] == 1
+    assert overview["total_claims"] == 2
+    assert overview["status_breakdown"] == [{"name": "approved", "count": 1}]
+    assert overview["editorial_outcomes"] == [{"name": "approved", "count": 1}]
+    assert overview["providers"] == [
+        {
+            "provider": "mock",
+            "runs": 1,
+            "tokens": 750,
+            "latency_ms": 25,
+            "estimated_cost_usd": 0.0,
+        }
+    ]

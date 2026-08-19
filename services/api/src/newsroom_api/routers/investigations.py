@@ -2,9 +2,18 @@ import asyncio
 import uuid
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Response,
+    status,
+)
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,7 +34,15 @@ from newsroom_api.models import (
 from newsroom_api.orchestration.deterministic import DeterministicNewsroomWorkflow
 from newsroom_api.orchestration.model_workflow import ModelNewsroomWorkflow
 from newsroom_api.providers.factory import create_model_provider
-from newsroom_api.schemas import AgentEventRead, EditorialDecisionCreate, InvestigationRunRead
+from newsroom_api.schemas import (
+    AgentEventRead,
+    AnalyticsOverview,
+    EditorialDecisionCreate,
+    InvestigationRunRead,
+    InvestigationSummary,
+    NamedMetric,
+    ProviderMetric,
+)
 
 router = APIRouter(tags=["investigations"])
 DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
@@ -46,6 +63,35 @@ async def load_run(session: AsyncSession, run_id: uuid.UUID) -> InvestigationRun
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
     return run
+
+
+def history_query() -> object:
+    return select(InvestigationRun).options(
+        selectinload(InvestigationRun.story),
+        selectinload(InvestigationRun.events),
+        selectinload(InvestigationRun.claims),
+        selectinload(InvestigationRun.adversarial_findings),
+        selectinload(InvestigationRun.editorial_decisions),
+    )
+
+
+def summarize_run(run: InvestigationRun) -> InvestigationSummary:
+    return InvestigationSummary(
+        id=run.id,
+        story_id=run.story_id,
+        story_title=run.story.title,
+        status=run.status,
+        provider_used=run.provider_used,
+        event_count=len(run.events),
+        claim_count=len(run.claims),
+        finding_count=len(run.adversarial_findings),
+        total_tokens=sum(
+            (event.input_tokens or 0) + (event.output_tokens or 0) for event in run.events
+        ),
+        total_latency_ms=sum(event.latency_ms or 0 for event in run.events),
+        estimated_cost_usd=sum(event.estimated_cost_usd or 0 for event in run.events),
+        created_at=run.created_at,
+    )
 
 
 async def execute_new_run(
@@ -145,6 +191,73 @@ async def start_investigation(
         return await load_run(session, run.id)
 
     return await execute_new_run(session, story_id, request_key, provider)
+
+
+@router.get("/investigations", response_model=list[InvestigationSummary])
+async def list_investigations(
+    session: DatabaseSession,
+    search: Annotated[str | None, Query(max_length=200)] = None,
+    run_status: RunStatus | None = None,
+    provider: Annotated[str | None, Query(max_length=40)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[InvestigationSummary]:
+    query = history_query().join(Story).order_by(InvestigationRun.created_at.desc())
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.where(
+            or_(Story.title.ilike(pattern), InvestigationRun.request_key.ilike(pattern))
+        )
+    if run_status:
+        query = query.where(InvestigationRun.status == run_status)
+    if provider:
+        query = query.where(InvestigationRun.provider_used == provider)
+    runs = list((await session.scalars(query.limit(limit).offset(offset))).unique().all())
+    return [summarize_run(run) for run in runs]
+
+
+@router.get("/analytics/overview", response_model=AnalyticsOverview)
+async def analytics_overview(session: DatabaseSession) -> AnalyticsOverview:
+    runs = list((await session.scalars(history_query())).unique().all())
+    status_counts: dict[str, int] = {}
+    risk_counts: dict[str, int] = {}
+    outcome_counts: dict[str, int] = {}
+    provider_metrics: dict[str, dict[str, float | int]] = {}
+    for run in runs:
+        status_counts[run.status.value] = status_counts.get(run.status.value, 0) + 1
+        provider = provider_metrics.setdefault(
+            run.provider_used,
+            {"runs": 0, "tokens": 0, "latency_ms": 0, "estimated_cost_usd": 0.0},
+        )
+        provider["runs"] += 1
+        for event in run.events:
+            provider["tokens"] += (event.input_tokens or 0) + (event.output_tokens or 0)
+            provider["latency_ms"] += event.latency_ms or 0
+            provider["estimated_cost_usd"] += event.estimated_cost_usd or 0
+        for finding in run.adversarial_findings:
+            risk_counts[finding.severity] = risk_counts.get(finding.severity, 0) + 1
+        for decision in run.editorial_decisions:
+            action = decision.action.value
+            outcome_counts[action] = outcome_counts.get(action, 0) + 1
+
+    return AnalyticsOverview(
+        total_runs=len(runs),
+        total_claims=sum(len(run.claims) for run in runs),
+        total_findings=sum(len(run.adversarial_findings) for run in runs),
+        status_breakdown=[
+            NamedMetric(name=name, count=count) for name, count in sorted(status_counts.items())
+        ],
+        risk_breakdown=[
+            NamedMetric(name=name, count=count) for name, count in sorted(risk_counts.items())
+        ],
+        editorial_outcomes=[
+            NamedMetric(name=name, count=count) for name, count in sorted(outcome_counts.items())
+        ],
+        providers=[
+            ProviderMetric(provider=name, **metrics)
+            for name, metrics in sorted(provider_metrics.items())
+        ],
+    )
 
 
 @router.get("/investigations/{run_id}", response_model=InvestigationRunRead)

@@ -80,7 +80,7 @@ export function EditorialControlCenter() {
     <main className="control-center">
       <header className="control-header">
         <Link href="/" className="brand"><span>THE SIGNAL DESK</span><b>Multi-Agent Newsroom</b></Link>
-        <div className="system-state"><i /> All desks operational</div>
+        <nav className="control-nav"><Link href="/analytics">Intelligence ledger</Link><div className="system-state"><i /> All desks operational</div></nav>
       </header>
       <section className="control-intro">
         <div><p className="eyebrow">Editorial control center / New assignment</p><h1>Put a story<br />under pressure.</h1></div>

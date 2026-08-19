@@ -90,6 +90,8 @@ make check
 - `POST /api/v1/stories/{story_id}/sources/ingest` safely captures an article or RSS feed.
 - `POST /api/v1/stories/{story_id}/investigations` runs the deterministic agent team.
 - `GET /api/v1/investigations/{run_id}` returns events, claims, citations, and the draft.
+- `GET /api/v1/investigations` searches and filters the investigation ledger.
+- `GET /api/v1/analytics/overview` aggregates outcomes, risks, usage, latency, and cost.
 - `GET /api/v1/investigations/{run_id}/events` streams agent activity with SSE.
 - `POST /api/v1/investigations/{run_id}/retry` retries a blocked or failed run.
 - `POST /api/v1/investigations/{run_id}/cancel` cancels queued or running work.
