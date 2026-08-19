@@ -121,6 +121,8 @@ class Source(TimestampMixin, Base):
         Enum(SourceKind, name="source_kind"), default=SourceKind.ARTICLE, nullable=False
     )
     snapshot_text: Mapped[str] = mapped_column(Text, nullable=False)
+    credibility_score: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    credibility_signals: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     story: Mapped[Story] = relationship(back_populates="sources")
     claims: Mapped[list["Claim"]] = relationship(back_populates="source")

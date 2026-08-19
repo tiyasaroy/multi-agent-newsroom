@@ -40,6 +40,8 @@ class SourceRead(BaseModel):
     publisher: str | None
     kind: SourceKind
     snapshot_text: str
+    credibility_score: float
+    credibility_signals: list[str]
     published_at: datetime | None
     created_at: datetime
 
@@ -47,6 +49,11 @@ class SourceRead(BaseModel):
 class StoryCreate(BaseModel):
     title: str = Field(min_length=5, max_length=240)
     summary: str | None = Field(default=None, max_length=2000)
+
+
+class SourceIngestRequest(BaseModel):
+    url: HttpUrl
+    max_items: int = Field(default=5, ge=1, le=20)
 
 
 class StoryRead(BaseModel):

@@ -7,8 +7,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from newsroom_api.database import get_session
-from newsroom_api.models import Source, Story, StoryStatus
-from newsroom_api.schemas import SourceCreate, SourceRead, StoryCreate, StoryDetail, StoryRead
+from newsroom_api.ingestion import IngestionError, ingest_url
+from newsroom_api.models import Source, SourceKind, Story, StoryStatus
+from newsroom_api.schemas import (
+    SourceCreate,
+    SourceIngestRequest,
+    SourceRead,
+    StoryCreate,
+    StoryDetail,
+    StoryRead,
+)
 
 router = APIRouter(prefix="/stories", tags=["stories"])
 DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
@@ -51,9 +59,7 @@ async def get_story(story_id: uuid.UUID, session: DatabaseSession) -> Story:
     return await get_story_or_404(session, story_id)
 
 
-@router.post(
-    "/{story_id}/sources", response_model=SourceRead, status_code=status.HTTP_201_CREATED
-)
+@router.post("/{story_id}/sources", response_model=SourceRead, status_code=status.HTTP_201_CREATED)
 async def add_source(
     story_id: uuid.UUID, payload: SourceCreate, session: DatabaseSession
 ) -> Source:
@@ -68,3 +74,47 @@ async def add_source(
     await session.commit()
     await session.refresh(source)
     return source
+
+
+@router.post(
+    "/{story_id}/sources/ingest",
+    response_model=list[SourceRead],
+    status_code=status.HTTP_201_CREATED,
+)
+async def ingest_story_source(
+    story_id: uuid.UUID, payload: SourceIngestRequest, session: DatabaseSession
+) -> list[Source]:
+    story_exists = await session.scalar(select(func.count()).where(Story.id == story_id))
+    if not story_exists:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+    try:
+        captured = await ingest_url(str(payload.url), payload.max_items)
+    except IngestionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="The remote source could not be retrieved",
+        ) from exc
+
+    sources = [
+        Source(
+            story_id=story_id,
+            title=item.title[:320],
+            url=item.url,
+            publisher=item.publisher,
+            kind=SourceKind.ARTICLE,
+            snapshot_text=item.snapshot_text,
+            published_at=item.published_at,
+            credibility_score=item.credibility_score,
+            credibility_signals=item.credibility_signals,
+        )
+        for item in captured
+    ]
+    session.add_all(sources)
+    await session.commit()
+    for source in sources:
+        await session.refresh(source)
+    return sources

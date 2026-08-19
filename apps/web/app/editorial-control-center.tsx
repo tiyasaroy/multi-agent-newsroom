@@ -24,7 +24,9 @@ export function EditorialControlCenter() {
   const [sources, setSources] = useState<SourceDraft[]>([blankSource(), blankSource()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const readySources = useMemo(() => sources.filter((source) => source.title.trim() && source.snapshot_text.trim().length >= 20), [sources]);
+  const readySources = useMemo(() => sources.filter((source) => (
+    Boolean(source.url.trim()) || (Boolean(source.title.trim()) && source.snapshot_text.trim().length >= 20)
+  )), [sources]);
 
   const updateSource = (index: number, field: keyof SourceDraft, value: string) => {
     setSources((current) => current.map((source, sourceIndex) => sourceIndex === index ? { ...source, [field]: value } : source));
@@ -45,13 +47,25 @@ export function EditorialControlCenter() {
       });
       if (!storyResponse.ok) throw new Error("The story desk rejected this assignment.");
       const story: { id: string } = await storyResponse.json();
-      await Promise.all(readySources.map(async (source) => {
-        const response = await fetch(`${apiUrl}/api/v1/stories/${story.id}/sources`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: source.title.trim(), publisher: source.publisher.trim() || null, url: source.url.trim() || null, kind: source.url.trim() ? "article" : "manual", snapshot_text: source.snapshot_text.trim() }),
-        });
-        if (!response.ok) throw new Error(`Source “${source.title}” could not be attached.`);
+      const capturedCounts = await Promise.all(readySources.map(async (source) => {
+        const automatic = Boolean(source.url.trim()) && source.snapshot_text.trim().length < 20;
+        const endpoint = automatic
+          ? `${apiUrl}/api/v1/stories/${story.id}/sources/ingest`
+          : `${apiUrl}/api/v1/stories/${story.id}/sources`;
+        const body = automatic
+          ? { url: source.url.trim(), max_items: 5 }
+          : { title: source.title.trim(), publisher: source.publisher.trim() || null, url: source.url.trim() || null, kind: source.url.trim() ? "article" : "manual", snapshot_text: source.snapshot_text.trim() };
+        const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (!response.ok) {
+          const payload: { detail?: string } = await response.json();
+          throw new Error(payload.detail ?? `Source “${source.title || source.url}” could not be attached.`);
+        }
+        const captured = await response.json();
+        return Array.isArray(captured) ? captured.length : 1;
       }));
+      if (capturedCounts.reduce((total, count) => total + count, 0) < 2) {
+        throw new Error("Ingestion produced fewer than two independent source snapshots.");
+      }
       const runResponse = await fetch(`${apiUrl}/api/v1/stories/${story.id}/investigations?provider=${provider}&background=true`, { method: "POST", headers: { "Idempotency-Key": crypto.randomUUID() } });
       if (!runResponse.ok) throw new Error("The agent team could not be launched.");
       const run: { id: string } = await runResponse.json();
@@ -85,9 +99,10 @@ export function EditorialControlCenter() {
               <article className="source-editor" key={index}>
                 <div className="source-number"><span>S{String(index + 1).padStart(2, "0")}</span>{sources.length > 2 && <button type="button" onClick={() => setSources((current) => current.filter((_, i) => i !== index))}>Remove</button>}</div>
                 <div className="source-fields">
-                  <input aria-label={`Source ${index + 1} title`} value={source.title} onChange={(event) => updateSource(index, "title", event.target.value)} minLength={3} required placeholder="Source title" />
+                  <input aria-label={`Source ${index + 1} title`} value={source.title} onChange={(event) => updateSource(index, "title", event.target.value)} minLength={source.url ? undefined : 3} required={!source.url} placeholder="Source title (automatic for URL capture)" />
                   <div className="source-meta"><input aria-label={`Source ${index + 1} publisher`} value={source.publisher} onChange={(event) => updateSource(index, "publisher", event.target.value)} placeholder="Publisher / author" /><input aria-label={`Source ${index + 1} URL`} value={source.url} onChange={(event) => updateSource(index, "url", event.target.value)} type="url" placeholder="URL (optional)" /></div>
-                  <textarea aria-label={`Source ${index + 1} snapshot`} value={source.snapshot_text} onChange={(event) => updateSource(index, "snapshot_text", event.target.value)} minLength={20} required rows={4} placeholder="Paste the exact source excerpt agents may use as evidence…" />
+                  <textarea aria-label={`Source ${index + 1} snapshot`} value={source.snapshot_text} onChange={(event) => updateSource(index, "snapshot_text", event.target.value)} minLength={source.url ? undefined : 20} required={!source.url} rows={4} placeholder={source.url ? "Leave blank to capture this URL or RSS feed automatically…" : "Paste the exact source excerpt agents may use as evidence…"} />
+                  {source.url && source.snapshot_text.trim().length < 20 && <small className="capture-mode">Automatic capture · SSRF protected · credibility signals recorded</small>}
                 </div>
               </article>
             ))}

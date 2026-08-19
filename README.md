@@ -87,6 +87,7 @@ make check
 - `GET /api/v1/stories` lists and filters stories.
 - `GET /api/v1/stories/{story_id}` returns a story with its source snapshots.
 - `POST /api/v1/stories/{story_id}/sources` attaches immutable source material.
+- `POST /api/v1/stories/{story_id}/sources/ingest` safely captures an article or RSS feed.
 - `POST /api/v1/stories/{story_id}/investigations` runs the deterministic agent team.
 - `GET /api/v1/investigations/{run_id}` returns events, claims, citations, and the draft.
 - `GET /api/v1/investigations/{run_id}/events` streams agent activity with SSE.
@@ -96,6 +97,13 @@ make check
 Database schema changes are managed with Alembic migrations. Source snapshots are
 stored independently from their original URLs so future fact-checking agents can
 always audit the exact evidence used during an investigation.
+
+URL ingestion follows redirects only after public-network validation, accepts a
+small allowlist of textual content types, and enforces a 2 MB response limit.
+Article text or feed summaries are stored as immutable snapshots. Each captured
+source receives an explainable 0–100 credibility score based on observable
+signals such as HTTPS, named attribution, publication time, and evidence depth;
+the score does not claim that the source is factually correct.
 
 The workflow includes deterministic implementations of the Assignment Editor,
 Researcher, Reporter, and Fact-Checker. It exercises durable agent state, parallel
