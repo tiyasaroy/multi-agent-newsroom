@@ -118,3 +118,33 @@ def test_completed_investigation_cannot_be_cancelled(client: TestClient) -> None
     response = client.post(f"/api/v1/investigations/{run['id']}/cancel")
 
     assert response.status_code == 409
+
+
+def test_model_shaped_provider_records_usage_telemetry(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+
+    response = client.post(
+        f"/api/v1/stories/{story['id']}/investigations?provider=mock"
+    )
+
+    assert response.status_code == 201
+    run = response.json()
+    assert run["provider_requested"] == "mock"
+    assert run["provider_used"] == "mock"
+    model_events = [event for event in run["events"] if event["provider"] == "mock"]
+    assert len(model_events) == 3
+    assert all(event["model"] == "mock-newsroom-v1" for event in model_events)
+    assert all(event["input_tokens"] == 100 for event in model_events)
+    assert run["draft"]["status"] == "human_review"
+
+
+def test_event_stream_replays_agent_activity(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+    run = client.post(f"/api/v1/stories/{story['id']}/investigations").json()
+
+    response = client.get(f"/api/v1/investigations/{run['id']}/events")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.text.count("event: agent_event") == 4
+    assert 'event: complete\ndata: {"status":"review"}' in response.text

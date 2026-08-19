@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://newsroom:newsroom@localhost:5432/newsroom"
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:3000"
+    newsroom_provider: str = "deterministic"
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-5.4-mini"
+    openai_input_cost_per_million: float = 0.0
+    openai_output_cost_per_million: float = 0.0
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

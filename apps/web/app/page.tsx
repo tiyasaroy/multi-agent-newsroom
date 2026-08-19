@@ -20,7 +20,7 @@ export default function Home() {
         <p className="eyebrow">Developing investigation · 14:32 IST</p>
         <h2>Every claim challenged.<br />Every source visible.</h2>
         <p className="lede">An autonomous editorial team is tracing conflicting reports into one accountable story.</p>
-        <button>Open investigation <span>→</span></button>
+        <Link className="button" href="/investigations/demo">Open investigation <span>→</span></Link>
       </section>
 
       <section className="grid">
@@ -52,3 +52,4 @@ export default function Home() {
     </main>
   );
 }
+import Link from "next/link";

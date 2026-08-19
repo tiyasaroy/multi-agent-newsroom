@@ -91,6 +91,13 @@ class AgentEventRead(BaseModel):
     status: EventStatus
     summary: str
     payload: dict[str, object]
+    provider: str | None
+    model: str | None
+    prompt_version: str | None
+    input_tokens: int | None
+    output_tokens: int | None
+    latency_ms: int | None
+    estimated_cost_usd: float | None
     created_at: datetime
 
 
@@ -109,6 +116,8 @@ class InvestigationRunRead(BaseModel):
     id: uuid.UUID
     story_id: uuid.UUID
     request_key: str
+    provider_requested: str
+    provider_used: str
     status: RunStatus
     current_stage: str | None
     blocked_reason: str | None

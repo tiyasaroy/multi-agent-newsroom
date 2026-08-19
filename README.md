@@ -89,6 +89,7 @@ make check
 - `POST /api/v1/stories/{story_id}/sources` attaches immutable source material.
 - `POST /api/v1/stories/{story_id}/investigations` runs the deterministic agent team.
 - `GET /api/v1/investigations/{run_id}` returns events, claims, citations, and the draft.
+- `GET /api/v1/investigations/{run_id}/events` streams agent activity with SSE.
 - `POST /api/v1/investigations/{run_id}/retry` retries a blocked or failed run.
 - `POST /api/v1/investigations/{run_id}/cancel` cancels queued or running work.
 
@@ -101,3 +102,16 @@ Editor, Researcher, Reporter, and Fact-Checker. It exercises durable agent state
 parallel source research, citations, idempotency, and editorial blocking without
 requiring model credentials. Live model providers will plug into this boundary in
 a later milestone.
+
+### Model-backed investigations
+
+Set `NEWSROOM_PROVIDER=openai` and `OPENAI_API_KEY` in the local `.env` file to
+use the OpenAI Responses API. `OPENAI_MODEL` controls the model and defaults to
+`gpt-5.4-mini`. If credentials are absent, the system automatically falls back
+to the deterministic workflow. The `mock` provider exercises the full
+model-shaped path without network calls.
+
+Add `?background=true` when starting an investigation to receive a queued run
+immediately, then subscribe to its `/events` endpoint. Each model-backed agent
+stage records its provider, model, prompt version, token usage, latency, and an
+optional cost estimate.

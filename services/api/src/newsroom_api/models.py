@@ -127,6 +127,8 @@ class InvestigationRun(TimestampMixin, Base):
         ForeignKey("stories.id", ondelete="CASCADE"), nullable=False, index=True
     )
     request_key: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    provider_requested: Mapped[str] = mapped_column(String(40), default="auto", nullable=False)
+    provider_used: Mapped[str] = mapped_column(String(40), default="deterministic", nullable=False)
     status: Mapped[RunStatus] = mapped_column(
         Enum(RunStatus, name="run_status"), default=RunStatus.QUEUED, nullable=False
     )
@@ -160,6 +162,13 @@ class AgentEvent(TimestampMixin, Base):
     )
     summary: Mapped[str] = mapped_column(String(500), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(JSON, default=dict, nullable=False)
+    provider: Mapped[str | None] = mapped_column(String(80))
+    model: Mapped[str | None] = mapped_column(String(120))
+    prompt_version: Mapped[str | None] = mapped_column(String(80))
+    input_tokens: Mapped[int | None] = mapped_column(Integer)
+    output_tokens: Mapped[int | None] = mapped_column(Integer)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float)
     run: Mapped[InvestigationRun] = relationship(back_populates="events")
 
     __table_args__ = (Index("uq_agent_events_run_sequence", "run_id", "sequence", unique=True),)
