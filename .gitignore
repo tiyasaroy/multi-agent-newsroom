@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Build output
+.next/
+dist/
+build/
+coverage/
+*.egg-info/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+*.log
+*.pid
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE and operating system
+.DS_Store
+.idea/
+.vscode/
+
