@@ -87,7 +87,17 @@ make check
 - `GET /api/v1/stories` lists and filters stories.
 - `GET /api/v1/stories/{story_id}` returns a story with its source snapshots.
 - `POST /api/v1/stories/{story_id}/sources` attaches immutable source material.
+- `POST /api/v1/stories/{story_id}/investigations` runs the deterministic agent team.
+- `GET /api/v1/investigations/{run_id}` returns events, claims, citations, and the draft.
+- `POST /api/v1/investigations/{run_id}/retry` retries a blocked or failed run.
+- `POST /api/v1/investigations/{run_id}/cancel` cancels queued or running work.
 
 Database schema changes are managed with Alembic migrations. Source snapshots are
 stored independently from their original URLs so future fact-checking agents can
 always audit the exact evidence used during an investigation.
+
+The initial workflow uses deterministic implementations of the Assignment
+Editor, Researcher, Reporter, and Fact-Checker. It exercises durable agent state,
+parallel source research, citations, idempotency, and editorial blocking without
+requiring model credentials. Live model providers will plug into this boundary in
+a later milestone.

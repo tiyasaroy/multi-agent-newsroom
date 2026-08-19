@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from newsroom_api.config import get_settings
+from newsroom_api.routers.investigations import router as investigations_router
 from newsroom_api.routers.stories import router as stories_router
 
 settings = get_settings()
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(stories_router, prefix="/api/v1")
+app.include_router(investigations_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["system"])

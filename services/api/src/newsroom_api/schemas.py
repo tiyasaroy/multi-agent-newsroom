@@ -3,7 +3,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
-from newsroom_api.models import SourceKind, StoryStatus
+from newsroom_api.models import (
+    AgentRole,
+    ClaimVerdict,
+    DraftStatus,
+    EventStatus,
+    RunStatus,
+    SourceKind,
+    StoryStatus,
+)
 
 
 class SourceCreate(BaseModel):
@@ -53,3 +61,60 @@ class StoryRead(BaseModel):
 
 class StoryDetail(StoryRead):
     sources: list[SourceRead]
+
+
+class CitationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    source_id: uuid.UUID
+    quote: str
+
+
+class ClaimRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    source_id: uuid.UUID
+    text: str
+    verdict: ClaimVerdict
+    confidence: float
+    citations: list[CitationRead]
+
+
+class AgentEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    sequence: int
+    agent: AgentRole
+    status: EventStatus
+    summary: str
+    payload: dict[str, object]
+    created_at: datetime
+
+
+class DraftRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    body: str
+    status: DraftStatus
+
+
+class InvestigationRunRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    story_id: uuid.UUID
+    request_key: str
+    status: RunStatus
+    current_stage: str | None
+    blocked_reason: str | None
+    error_message: str | None
+    completed_at: datetime | None
+    created_at: datetime
+    events: list[AgentEventRead]
+    claims: list[ClaimRead]
+    draft: DraftRead | None
