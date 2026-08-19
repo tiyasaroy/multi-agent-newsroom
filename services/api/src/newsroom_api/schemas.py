@@ -7,6 +7,7 @@ from newsroom_api.models import (
     AgentRole,
     ClaimVerdict,
     DraftStatus,
+    EditorialAction,
     EventStatus,
     RunStatus,
     SourceKind,
@@ -110,6 +111,21 @@ class DraftRead(BaseModel):
     status: DraftStatus
 
 
+class EditorialDecisionCreate(BaseModel):
+    editor_name: str = Field(min_length=2, max_length=120)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class EditorialDecisionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    action: EditorialAction
+    editor_name: str
+    note: str | None
+    created_at: datetime
+
+
 class InvestigationRunRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -127,3 +143,4 @@ class InvestigationRunRead(BaseModel):
     events: list[AgentEventRead]
     claims: list[ClaimRead]
     draft: DraftRead | None
+    editorial_decisions: list[EditorialDecisionRead]

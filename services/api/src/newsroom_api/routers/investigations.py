@@ -10,11 +10,22 @@ from sqlalchemy.orm import selectinload
 
 from newsroom_api.config import get_settings
 from newsroom_api.database import get_session, session_factory
-from newsroom_api.models import AgentEvent, Claim, InvestigationRun, RunStatus, Story
+from newsroom_api.models import (
+    AgentEvent,
+    AgentRole,
+    Claim,
+    DraftStatus,
+    EditorialAction,
+    EditorialDecision,
+    InvestigationRun,
+    RunStatus,
+    Story,
+    StoryStatus,
+)
 from newsroom_api.orchestration.deterministic import DeterministicNewsroomWorkflow
 from newsroom_api.orchestration.model_workflow import ModelNewsroomWorkflow
 from newsroom_api.providers.factory import create_model_provider
-from newsroom_api.schemas import AgentEventRead, InvestigationRunRead
+from newsroom_api.schemas import AgentEventRead, EditorialDecisionCreate, InvestigationRunRead
 
 router = APIRouter(tags=["investigations"])
 DatabaseSession = Annotated[AsyncSession, Depends(get_session)]
@@ -25,6 +36,7 @@ def run_query() -> object:
         selectinload(InvestigationRun.events),
         selectinload(InvestigationRun.claims).selectinload(Claim.citations),
         selectinload(InvestigationRun.draft),
+        selectinload(InvestigationRun.editorial_decisions),
     )
 
 
@@ -147,7 +159,14 @@ async def stream_investigation_events(
 
     async def event_stream():
         last_sequence = 0
-        terminal = {RunStatus.REVIEW, RunStatus.BLOCKED, RunStatus.FAILED, RunStatus.CANCELLED}
+        terminal = {
+            RunStatus.REVIEW,
+            RunStatus.BLOCKED,
+            RunStatus.FAILED,
+            RunStatus.CANCELLED,
+            RunStatus.APPROVED,
+            RunStatus.REVISION_REQUESTED,
+        }
         while True:
             events = list(
                 (
@@ -211,3 +230,60 @@ async def cancel_investigation(run_id: uuid.UUID, session: DatabaseSession) -> I
     run.current_stage = None
     await session.commit()
     return await load_run(session, run.id)
+
+
+async def record_editorial_decision(
+    session: AsyncSession,
+    run_id: uuid.UUID,
+    payload: EditorialDecisionCreate,
+    action: EditorialAction,
+) -> InvestigationRun:
+    run = await load_run(session, run_id)
+    if run.status != RunStatus.REVIEW or run.draft is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only investigations awaiting human review can receive an editorial decision",
+        )
+    story = await session.get(Story, run.story_id)
+    if story is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+
+    run.editorial_decisions.append(
+        EditorialDecision(
+            action=action,
+            editor_name=payload.editor_name.strip(),
+            note=payload.note.strip() if payload.note else None,
+        )
+    )
+    if action == EditorialAction.APPROVED:
+        run.status = RunStatus.APPROVED
+        run.current_stage = None
+        run.blocked_reason = None
+        run.draft.status = DraftStatus.APPROVED
+        story.status = StoryStatus.APPROVED
+    else:
+        run.status = RunStatus.REVISION_REQUESTED
+        run.current_stage = AgentRole.REPORTER.value
+        run.blocked_reason = (
+            payload.note.strip() if payload.note else "Human editor requested revision."
+        )
+        run.draft.status = DraftStatus.REVISION_REQUESTED
+        story.status = StoryStatus.DEVELOPING
+    await session.commit()
+    return await load_run(session, run.id)
+
+
+@router.post("/investigations/{run_id}/approve", response_model=InvestigationRunRead)
+async def approve_investigation(
+    run_id: uuid.UUID, payload: EditorialDecisionCreate, session: DatabaseSession
+) -> InvestigationRun:
+    return await record_editorial_decision(session, run_id, payload, EditorialAction.APPROVED)
+
+
+@router.post("/investigations/{run_id}/request-revision", response_model=InvestigationRunRead)
+async def request_investigation_revision(
+    run_id: uuid.UUID, payload: EditorialDecisionCreate, session: DatabaseSession
+) -> InvestigationRun:
+    return await record_editorial_decision(
+        session, run_id, payload, EditorialAction.REVISION_REQUESTED
+    )

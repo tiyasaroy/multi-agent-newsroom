@@ -148,3 +148,58 @@ def test_event_stream_replays_agent_activity(client: TestClient) -> None:
     assert response.headers["content-type"].startswith("text/event-stream")
     assert response.text.count("event: agent_event") == 4
     assert 'event: complete\ndata: {"status":"review"}' in response.text
+
+
+def test_human_editor_can_approve_review_ready_draft(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+    run = client.post(f"/api/v1/stories/{story['id']}/investigations").json()
+
+    response = client.post(
+        f"/api/v1/investigations/{run['id']}/approve",
+        json={"editor_name": "Maya Chen", "note": "Evidence and attribution verified."},
+    )
+
+    assert response.status_code == 200
+    approved = response.json()
+    assert approved["status"] == "approved"
+    assert approved["current_stage"] is None
+    assert approved["draft"]["status"] == "approved"
+    assert approved["editorial_decisions"] == [
+        {
+            "id": approved["editorial_decisions"][0]["id"],
+            "action": "approved",
+            "editor_name": "Maya Chen",
+            "note": "Evidence and attribution verified.",
+            "created_at": approved["editorial_decisions"][0]["created_at"],
+        }
+    ]
+    assert client.get(f"/api/v1/stories/{story['id']}").json()["status"] == "approved"
+
+
+def test_human_editor_can_request_revision_with_audit_note(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+    run = client.post(f"/api/v1/stories/{story['id']}/investigations").json()
+
+    response = client.post(
+        f"/api/v1/investigations/{run['id']}/request-revision",
+        json={"editor_name": "Maya Chen", "note": "Clarify the restoration timeline."},
+    )
+
+    assert response.status_code == 200
+    revised = response.json()
+    assert revised["status"] == "revision_requested"
+    assert revised["current_stage"] == "reporter"
+    assert revised["draft"]["status"] == "revision_requested"
+    assert revised["blocked_reason"] == "Clarify the restoration timeline."
+    assert revised["editorial_decisions"][0]["action"] == "revision_requested"
+    assert client.get(f"/api/v1/stories/{story['id']}").json()["status"] == "developing"
+
+
+def test_editorial_decision_cannot_be_recorded_twice(client: TestClient) -> None:
+    story = create_story(client, source_count=2)
+    run = client.post(f"/api/v1/stories/{story['id']}/investigations").json()
+    path = f"/api/v1/investigations/{run['id']}/approve"
+    payload = {"editor_name": "Maya Chen"}
+
+    assert client.post(path, json=payload).status_code == 200
+    assert client.post(path, json=payload).status_code == 409

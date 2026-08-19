@@ -21,6 +21,7 @@ from newsroom_api.models import (
     RunStatus,
     Source,
     Story,
+    StoryStatus,
 )
 
 
@@ -171,6 +172,7 @@ class DeterministicNewsroomWorkflow:
                 claim.confidence = 0.8
             run.status = RunStatus.REVIEW
             draft.status = DraftStatus.HUMAN_REVIEW
+            story.status = StoryStatus.REVIEW
 
         self.record_event(
             run,

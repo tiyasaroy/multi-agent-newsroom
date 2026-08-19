@@ -17,6 +17,7 @@ from newsroom_api.models import (
     InvestigationRun,
     RunStatus,
     Story,
+    StoryStatus,
 )
 from newsroom_api.providers.base import ModelResult, NewsroomModelProvider, SourceInput
 
@@ -160,6 +161,8 @@ class ModelNewsroomWorkflow:
         run.status = RunStatus.BLOCKED if blocked else RunStatus.REVIEW
         run.draft.status = DraftStatus.BLOCKED if blocked else DraftStatus.HUMAN_REVIEW
         run.blocked_reason = fact_check.output.blocked_reason if blocked else None
+        if not blocked:
+            story.status = StoryStatus.REVIEW
         self.record_event(
             run,
             AgentRole.FACT_CHECKER,

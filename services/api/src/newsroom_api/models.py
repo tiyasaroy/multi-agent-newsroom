@@ -44,6 +44,8 @@ class RunStatus(enum.StrEnum):
     BLOCKED = "blocked"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    APPROVED = "approved"
+    REVISION_REQUESTED = "revision_requested"
 
 
 class AgentRole(enum.StrEnum):
@@ -69,6 +71,12 @@ class DraftStatus(enum.StrEnum):
     BLOCKED = "blocked"
     HUMAN_REVIEW = "human_review"
     APPROVED = "approved"
+    REVISION_REQUESTED = "revision_requested"
+
+
+class EditorialAction(enum.StrEnum):
+    APPROVED = "approved"
+    REVISION_REQUESTED = "revision_requested"
 
 
 class TimestampMixin:
@@ -145,6 +153,9 @@ class InvestigationRun(TimestampMixin, Base):
     )
     draft: Mapped["Draft | None"] = relationship(
         back_populates="run", cascade="all, delete-orphan", uselist=False
+    )
+    editorial_decisions: Mapped[list["EditorialDecision"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="EditorialDecision.created_at"
     )
 
 
@@ -226,3 +237,21 @@ class Draft(TimestampMixin, Base):
         Enum(DraftStatus, name="draft_status"), default=DraftStatus.BLOCKED, nullable=False
     )
     run: Mapped[InvestigationRun] = relationship(back_populates="draft")
+
+
+class EditorialDecision(Base):
+    __tablename__ = "editorial_decisions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("investigation_runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    action: Mapped[EditorialAction] = mapped_column(
+        Enum(EditorialAction, name="editorial_action"), nullable=False
+    )
+    editor_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    run: Mapped[InvestigationRun] = relationship(back_populates="editorial_decisions")

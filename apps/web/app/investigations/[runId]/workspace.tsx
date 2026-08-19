@@ -35,6 +35,13 @@ type Run = {
   events: AgentEvent[];
   claims: Claim[];
   draft: { title: string; body: string; status: string } | null;
+  editorial_decisions: {
+    id: string;
+    action: string;
+    editor_name: string;
+    note: string | null;
+    created_at: string;
+  }[];
 };
 
 const demoRun: Run = {
@@ -59,6 +66,7 @@ const demoRun: Run = {
     body: "Transit service changed shortly after 14:00 local time, according to two independent reports. [1]\n\nOfficials have not released a final restoration timeline. [2]\n\nEarly accounts differ on the geographic extent of the disruption, and that detail remains under editorial review. [3]",
     status: "human_review",
   },
+  editorial_decisions: [],
 };
 
 const label = (value: string) => value.replaceAll("_", " ");
@@ -66,6 +74,9 @@ const label = (value: string) => value.replaceAll("_", " ");
 export function InvestigationWorkspace({ runId }: { runId: string }) {
   const [run, setRun] = useState<Run | null>(runId === "demo" ? demoRun : null);
   const [error, setError] = useState<string | null>(null);
+  const [editorName, setEditorName] = useState("Human Editor");
+  const [editorNote, setEditorNote] = useState("");
+  const [decisionPending, setDecisionPending] = useState<string | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
   useEffect(() => {
@@ -94,6 +105,29 @@ export function InvestigationWorkspace({ runId }: { runId: string }) {
     }),
     { tokens: 0, latency: 0 },
   ), [run]);
+
+  const submitDecision = async (action: "approve" | "request-revision") => {
+    if (runId === "demo") return;
+    setError(null);
+    setDecisionPending(action);
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/investigations/${runId}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ editor_name: editorName.trim(), note: editorNote.trim() || null }),
+      });
+      if (!response.ok) {
+        const payload: { detail?: string } = await response.json();
+        throw new Error(payload.detail ?? "Editorial decision could not be recorded");
+      }
+      setRun(await response.json());
+      setEditorNote("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Editorial decision failed");
+    } finally {
+      setDecisionPending(null);
+    }
+  };
 
   if (error) return <main className="workspace-state"><Link href="/">← Newsroom</Link><h1>{error}</h1></main>;
   if (!run) return <main className="workspace-state"><p>Connecting to the investigation desk…</p></main>;
@@ -124,8 +158,12 @@ export function InvestigationWorkspace({ runId }: { runId: string }) {
         <article className="draft-column">
           <div className="section-label"><span>Editorial draft</span><em>{label(run.draft?.status ?? run.status)}</em></div>
           <div className="draft-copy">{run.draft?.body.split("\n").map((line, index) => <p key={index}>{line}</p>)}</div>
-          <div className="editor-actions"><button disabled>Request revision</button><button className="approve" disabled>Approve for publication</button></div>
-          <small className="gate-note">Publication controls remain locked until an authenticated human editor is connected.</small>
+          {run.status === "review" && <div className="editor-gate">
+            <div className="editor-identity"><label>Editor<input value={editorName} minLength={2} maxLength={120} onChange={(event) => setEditorName(event.target.value)} /></label><label>Decision note<textarea value={editorNote} maxLength={2000} rows={3} onChange={(event) => setEditorNote(event.target.value)} placeholder="Record the reasoning behind this decision…" /></label></div>
+            <div className="editor-actions"><button disabled={Boolean(decisionPending) || editorName.trim().length < 2} onClick={() => submitDecision("request-revision")}>{decisionPending === "request-revision" ? "Recording…" : "Request revision"}</button><button className="approve" disabled={Boolean(decisionPending) || editorName.trim().length < 2} onClick={() => submitDecision("approve")}>{decisionPending === "approve" ? "Recording…" : "Approve for publication"}</button></div>
+            <small className="gate-note">This decision is permanent and will be attached to the editorial audit trail.</small>
+          </div>}
+          {run.editorial_decisions.length > 0 && <section className="decision-log"><div className="section-label">Editorial audit trail</div>{run.editorial_decisions.map((decision) => <article key={decision.id}><span className={`decision-mark ${decision.action}`} /><div><b>{label(decision.action)}</b><p>{decision.note ?? "No editorial note provided."}</p><small>{decision.editor_name} · {new Date(decision.created_at).toLocaleString()}</small></div></article>)}</section>}
         </article>
 
         <aside className="evidence-column">
