@@ -46,9 +46,6 @@ human approved publication.
 - **Observability:** structured traces, token/cost accounting, evaluation results
 - **Deployment:** containerized services with CI/CD
 
-See [docs/PROJECT_PLAN.md](docs/PROJECT_PLAN.md) for the delivery roadmap.
-
 ## Status
 
 Project initialization and architecture planning.
-
