@@ -61,7 +61,7 @@ infra/             Local infrastructure configuration
 
 ## Local development
 
-Prerequisites: Node.js 20+, pnpm 9+, Python 3.11+, and Docker with Compose.
+Prerequisites: Node.js 24+, pnpm 11+, Python 3.11+, and Docker with Compose.
 
 ```bash
 cp .env.example .env
