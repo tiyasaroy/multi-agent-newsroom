@@ -98,7 +98,7 @@ async def start_investigation(
     background_tasks: BackgroundTasks,
     response: Response,
     idempotency_key: Annotated[str | None, Header(max_length=120)] = None,
-    provider: Literal["auto", "deterministic", "mock", "openai"] = "auto",
+    provider: Literal["auto", "deterministic", "gemini", "mock", "openai"] = "auto",
     background: bool = False,
 ) -> InvestigationRun:
     request_key = idempotency_key or str(uuid.uuid4())
@@ -186,7 +186,7 @@ async def retry_investigation(
     run_id: uuid.UUID,
     session: DatabaseSession,
     idempotency_key: Annotated[str | None, Header(max_length=120)] = None,
-    provider: Literal["auto", "deterministic", "mock", "openai"] = "auto",
+    provider: Literal["auto", "deterministic", "gemini", "mock", "openai"] = "auto",
 ) -> InvestigationRun:
     previous = await load_run(session, run_id)
     if previous.status not in {RunStatus.BLOCKED, RunStatus.FAILED, RunStatus.CANCELLED}:

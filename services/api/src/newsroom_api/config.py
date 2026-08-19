@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.4-mini"
     openai_input_cost_per_million: float = 0.0
     openai_output_cost_per_million: float = 0.0
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.6-flash"
+    gemini_input_cost_per_million: float = 0.0
+    gemini_output_cost_per_million: float = 0.0
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -97,19 +97,27 @@ Database schema changes are managed with Alembic migrations. Source snapshots ar
 stored independently from their original URLs so future fact-checking agents can
 always audit the exact evidence used during an investigation.
 
-The initial workflow uses deterministic implementations of the Assignment
-Editor, Researcher, Reporter, and Fact-Checker. It exercises durable agent state,
-parallel source research, citations, idempotency, and editorial blocking without
-requiring model credentials. Live model providers will plug into this boundary in
-a later milestone.
+The workflow includes deterministic implementations of the Assignment Editor,
+Researcher, Reporter, and Fact-Checker. It exercises durable agent state, parallel
+source research, citations, idempotency, and editorial blocking without requiring
+model credentials. OpenAI and Gemini adapters can run the same workflow with live
+models and structured outputs.
 
 ### Model-backed investigations
 
-Set `NEWSROOM_PROVIDER=openai` and `OPENAI_API_KEY` in the local `.env` file to
-use the OpenAI Responses API. `OPENAI_MODEL` controls the model and defaults to
-`gpt-5.4-mini`. If credentials are absent, the system automatically falls back
-to the deterministic workflow. The `mock` provider exercises the full
-model-shaped path without network calls.
+Choose a live provider in the local `.env` file:
+
+```dotenv
+NEWSROOM_PROVIDER=gemini
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-3.6-flash
+```
+
+Gemini uses the Google Gen AI SDK with schema-constrained JSON output. OpenAI is
+also supported with `NEWSROOM_PROVIDER=openai`, `OPENAI_API_KEY`, and
+`OPENAI_MODEL` (default `gpt-5.4-mini`). If the selected provider's credentials
+are absent, the system automatically falls back to the deterministic workflow.
+The `mock` provider exercises the full model-shaped path without network calls.
 
 Add `?background=true` when starting an investigation to receive a queued run
 immediately, then subscribe to its `/events` endpoint. Each model-backed agent
